@@ -2,25 +2,28 @@ CHIP P2S {
     IN indata[4], enable, load;
     OUT sout, complete;
 
-    PARTS:
+PARTS:
+    // 4-bit register to store input data
+    Register(in=indata, load=load, out=data);
 
-    // Store the 4-bit input using 4 Bit registers
-    Bit(in=indata[0], load=load, out=stored[0]);
-    Bit(in=indata[1], load=load, out=stored[1]);
-    Bit(in=indata[2], load=load, out=stored[2]);
-    Bit(in=indata[3], load=load, out=stored[3]);
+    // State register (0 = IDLE, 1 = TRANSMITTING)
+    DFF(in=next_state, out=current_state);
 
-    // Counter to track which bit to output (0 to 3)
-    Counter(load=load, inc=enable, reset=false, out=count);
+    // Next state logic
+    OR(a=start_transmitting, b=continue_transmitting, out=next_state);
+    AND(a=enable, b=NotCurrentState.out, out=start_transmitting);
+    AND(a=current_state, b=!is_complete, out=continue_transmitting);
+    NOT(in=current_state, out=NotCurrentState.out);
 
-    // Use multiplexers to select one of the 4 stored bits
-    Mux(a=stored[0], b=stored[1], sel=count[0], out=mux01);
-    Mux(a=stored[2], b=stored[3], sel=count[0], out=mux23);
-    Mux(a=mux01, b=mux23, sel=count[1], out=sout);
+    // 2-bit counter to track transmitted bits
+    Register(in=next_count, out=count);
+    Inc16(in=count, out=count_inc);
+    Mux2(a=0, b=count_inc, sel=current_state, out=next_count);
 
-    // Generate 'complete' signal when count == 3 and enable is high
-    And(a=count[0], b=count[1], out=lowBitsOne);     // count[1:0] == 11
-    Not(in=count[2], out=notBit2);
-    And(a=lowBitsOne, b=notBit2, out=is3);           // is3 = (count == 3)
-    And(a=is3, b=enable, out=complete);              // complete = is3 AND enable
+    // Completion check (count == 3)
+    AND(a=count[0], b=count[1], out=is_complete);
+    AND(a=current_state, b=is_complete, out=complete);
+
+    // Output selection (bit 0 to 3)
+    Mux4(a=data[0], b=data[1], c=data[2], d=data[3], sel=count, out=sout);
 }

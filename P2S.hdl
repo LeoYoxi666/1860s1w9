@@ -4,21 +4,23 @@ CHIP P2S {
 
     PARTS:
 
-    // Store the 4-bit input when load is high
-    Register(in=indata, load=load, out=stored);
+    // Store the 4-bit input using 4 Bit registers
+    Bit(in=indata[0], load=load, out=stored[0]);
+    Bit(in=indata[1], load=load, out=stored[1]);
+    Bit(in=indata[2], load=load, out=stored[2]);
+    Bit(in=indata[3], load=load, out=stored[3]);
 
     // Counter to track which bit to output (0 to 3)
     Counter(load=load, inc=enable, reset=false, out=count);
 
-    // Output the bit from 'stored' based on the value of 'count'
+    // Use multiplexers to select one of the 4 stored bits
     Mux(a=stored[0], b=stored[1], sel=count[0], out=mux01);
     Mux(a=stored[2], b=stored[3], sel=count[0], out=mux23);
     Mux(a=mux01, b=mux23, sel=count[1], out=sout);
 
     // Generate 'complete' signal when count == 3 and enable is high
     And(a=count[0], b=count[1], out=lowBitsOne);     // count[1:0] == 11
-    Not(in=count[2], out=notBit2);                  // ensure count[2] == 0
-    And(a=lowBitsOne, b=notBit2, out=is3);          // is3 = (count == 3)
-    And(a=is3, b=enable, out=complete);             // complete = is3 & enable
+    Not(in=count[2], out=notBit2);
+    And(a=lowBitsOne, b=notBit2, out=is3);           // is3 = (count == 3)
+    And(a=is3, b=enable, out=complete);              // complete = is3 AND enable
 }
-
